@@ -1,0 +1,14 @@
+{
+  "name": "himwiita-nkosilati-music-v4",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Himwiita Nkosilati Music — permanent online music website with Supabase storage and database.",
+  "main": "server.js",
+  "scripts": {"start":"node server.js","dev":"node server.js"},
+  "engines": {"node": ">=18"},
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  }
+}

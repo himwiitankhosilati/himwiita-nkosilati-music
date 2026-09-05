@@ -1,0 +1,104 @@
+{
+  "albums": [
+    {
+      "id": "tushoma-ndiwe",
+      "title": "Tushoma Ndiwe",
+      "cover": "",
+      "description": "New gospel album by Himwiita Nkosilati."
+    }
+  ],
+  "songs": [
+    {
+      "id": "album-1",
+      "title": "Atunwe",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/atunwe_himwiita_nkhosilati_0978038489_2_.mp3",
+      "track": 1
+    },
+    {
+      "id": "album-2",
+      "title": "Imusizo",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/imusizo_himwiita_nkhosilati_0978038489.mp3",
+      "track": 2
+    },
+    {
+      "id": "album-3",
+      "title": "Ku Zioni",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/ku_zioni_himwiita_nkhosilati_0978038489.mp3",
+      "track": 3
+    },
+    {
+      "id": "album-4",
+      "title": "Ndiwe",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/ndiwe_himwiita_nkhosilati_0978038489.mp3",
+      "track": 4
+    },
+    {
+      "id": "album-5",
+      "title": "Omwami Kondilekelela",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/omwami_kondilekelela_himwiita_nkhosilati_0978038489.mp3",
+      "track": 5
+    },
+    {
+      "id": "album-6",
+      "title": "Onyika",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/onyika_himwiita_nkhosilati_0978038489.mp3",
+      "track": 6
+    },
+    {
+      "id": "album-7",
+      "title": "Tachilicaali",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/tachilicaali_himwiita_nkhosilati_0978038489.mp3",
+      "track": 7
+    },
+    {
+      "id": "album-8",
+      "title": "Tushoma Ndiwe",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/tushoma_ndiwe_himwiita_nkhosilati_0978038489.mp3",
+      "track": 8
+    },
+    {
+      "id": "album-9",
+      "title": "Tuyomubona",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/tuyomubona_himwiita_nkhosilati_0978038489.mp3",
+      "track": 9
+    },
+    {
+      "id": "album-10",
+      "title": "Twaboola",
+      "artist": "Himwiita Nkosilati",
+      "album": "Tushoma Ndiwe",
+      "genre": "Gospel",
+      "file": "/uploads/audio/twaboola_himwiita_nkhosilati_0978038489_1_.mp3",
+      "track": 10
+    }
+  ],
+  "videos": [],
+  "lyrics": []
+}

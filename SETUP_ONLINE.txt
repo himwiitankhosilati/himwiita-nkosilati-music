@@ -1,0 +1,62 @@
+HIMWIITA NKOSILATI MUSIC — VERSION 4
+=====================================
+
+I have prepared the website so the final online setup uses:
+
+1. Render = the website/server
+2. Supabase = permanent database + permanent storage for songs, videos and covers
+3. GitHub = where the project code is stored for deployment
+
+FILES YOU NEED
+--------------
+- render.yaml
+- sql/supabase_setup.sql
+- package.json
+- server.js
+- public/
+- uploads/audio/ (your 10 existing songs)
+
+SUPABASE — ONE-TIME SETUP
+-------------------------
+1. Create a Supabase project.
+2. Open SQL Editor.
+3. Open sql/supabase_setup.sql from this project.
+4. Copy ALL of it into Supabase SQL Editor and Run.
+5. In Supabase Project Settings, get:
+   - Project URL
+   - service_role key
+6. Keep the service_role key private. Never post it publicly.
+
+RENDER VARIABLES
+----------------
+Set these environment variables in Render:
+SUPABASE_URL = your Supabase Project URL
+SUPABASE_SERVICE_ROLE_KEY = your private service_role key
+SESSION_SECRET = a long random secret
+ADMIN_USER = admin
+ADMIN_PASS = your own strong admin password
+
+RENDER BUILD SETTINGS
+---------------------
+Build Command: npm install
+Start Command: npm start
+
+The included render.yaml already contains these settings and asks Render for the secret values.
+
+FIRST ONLINE START
+------------------
+When V4 starts with Supabase configured, it checks the Songs table. If it is empty, it automatically uploads the 10 included Tushoma Ndiwe MP3 files into the Supabase audio bucket and creates the song records.
+
+ADMIN
+-----
+Public website: /
+Admin panel: /admin.html
+
+Use the ADMIN_USER and ADMIN_PASS you set in Render.
+
+SECURITY
+--------
+- Never put SUPABASE_SERVICE_ROLE_KEY in browser JavaScript.
+- Change the default admin password before going live.
+- Use HTTPS (Render provides HTTPS for the public service).
+- Do not share your Render environment variables publicly.
