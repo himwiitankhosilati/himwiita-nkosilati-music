@@ -1,4 +1,4 @@
-HIMWIITA NKOSILATI MUSIC — V4.1 ONLINE UPDATE
+HIMWIITA NKOSILATI MUSIC — V4.1.2 FULLY AUDITED ONLINE UPDATE
 
 1. Replace the files in your GitHub repository with this V4.1 package.
 2. Keep the repository structure exactly as provided: server.js, package.json, public/, sql/, uploads/, etc. must be in the repository root.
@@ -17,5 +17,5 @@ Expected health response includes:
 IMPORTANT:
 - The 10 starter MP3s are bundled with the website, so they do not need to be uploaded to Supabase Storage on startup.
 - New admin uploads try Supabase Storage first.
-- If Supabase Storage is unreachable, V4.1 saves the new upload locally so it works immediately, but Render Free can erase local uploads after a restart/redeploy. For permanent new uploads, Supabase Storage connectivity must be working.
+- If Supabase Storage is unreachable, V4.1.2 saves the new upload locally so it works immediately, but Render Free can erase local uploads after a restart/redeploy. For permanent new uploads, Supabase Storage connectivity must be working.
 - Never paste your Supabase secret/service-role key into chat or put it in GitHub.

@@ -1,8 +1,8 @@
 {
-  "name": "himwiita-nkosilati-music-v4-1",
-  "version": "4.1.0",
+  "name": "himwiita-nkosilati-music-v4-1-2",
+  "version": "4.1.2",
   "private": true,
-  "description": "Himwiita Nkosilati Music \u2014 V4.1 resilient online music website with Supabase plus local fallback.",
+  "description": "Himwiita Nkosilati Music \u2014 V4.1.2 fully audited starter-song and Supabase fallback build.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

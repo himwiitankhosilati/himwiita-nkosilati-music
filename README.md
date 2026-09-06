@@ -1,6 +1,6 @@
-# Himwiita Nkosilati Music — V4.1
+# Himwiita Nkosilati Music — V4.1.2
 
-V4.1 fixes the first-album problem by **not requiring the 10 bundled MP3s to be uploaded to Supabase Storage during startup**. The starter MP3s are already inside the application and are served from `/uploads/audio/...`.
+V4.1.2 fixes the first-album problem by **not requiring the 10 bundled MP3s to be uploaded to Supabase Storage during startup**. The starter MP3s are already inside the application and are served from `/uploads/audio/...`.
 
 ## What changed
 - 10 starter songs are seeded into the Supabase `songs` table with local playable URLs.

@@ -4,11 +4,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
-const CONTENT_FILE = path.join(ROOT, 'data', 'content.json');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+const CONTENT_FILE = path.join(ROOT, 'data', 'content.json');
 const PUBLIC = path.join(ROOT, 'public');
 const AUDIO = path.join(ROOT, 'uploads', 'audio');
 const VIDEOS = path.join(ROOT, 'uploads', 'videos');
@@ -55,16 +55,27 @@ function writeLocal(c){fs.mkdirSync(path.dirname(CONTENT_FILE),{recursive:true})
 function localSeedSongs(){
   const c=readLocal();
   const files=fs.readdirSync(AUDIO).filter(x=>x.toLowerCase().endsWith('.mp3')).sort();
-  const existing=new Map((c.songs||[]).map(x=>[x.id,x]));
+  const existing=new Map((c.songs||[]).map(x=>[x.id,{...x}]));
   files.forEach((filename,i)=>{
     const sid='album-'+(i+1);
-    if(!existing.has(sid)){
-      const title=filename.replace(/_himwiita_nkhosilati.*$/i,'').replace(/^.*\//,'').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()).replace(/\s+/g,' ').trim();
-      existing.set(sid,{id:sid,title,artist:'Himwiita Nkosilati',album:'Tushoma Ndiwe',genre:'Gospel',file_url:localUrl('audio',filename),track:i+1,plays:0});
-    }
+    const title=filename.replace(/_himwiita_nkhosilati.*$/i,'').replace(/^.*\//,'').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()).replace(/\s+/g,' ').trim();
+    const old=existing.get(sid)||{};
+    existing.set(sid,{
+      ...old,
+      id:sid,
+      title:old.title||title,
+      artist:old.artist||'Himwiita Nkosilati',
+      album:old.album||'Tushoma Ndiwe',
+      genre:old.genre||'Gospel',
+      file_url:old.file_url||localUrl('audio',filename),
+      track:old.track||i+1,
+      plays:Number(old.plays||0)
+    });
+    delete existing.get(sid).file;
   });
   c.songs=[...existing.values()];
   if(!c.albums?.length)c.albums=[{id:'album-1',title:'Tushoma Ndiwe',description:'Gospel album by Himwiita Nkosilati',cover_url:''}];
+  c.albums=(c.albums||[]).map(a=>({...a,cover_url:a.cover_url||a.cover||''}));
   writeLocal(c); return c;
 }
 function localContent(){return localSeedSongs();}
@@ -106,7 +117,10 @@ async function seedSongs(){
     if(error)throw error;
     if(existing?.length)return;
     for(const song of local.songs){
-      const row={...song}; delete row.created_at; delete row.updated_at;
+      // Always repair the 10 bundled starter rows to point at the MP3s shipped with the app.
+      // This also fixes rows left behind by V4 that pointed to unreachable Supabase Storage URLs.
+      const row={...song}; delete row.created_at; delete row.updated_at; delete row.file;
+      row.file_url=localUrl('audio',path.basename(song.file_url||''));
       const ins=await supabase.from('songs').upsert(row,{onConflict:'id'});
       if(ins.error)throw ins.error;
     }

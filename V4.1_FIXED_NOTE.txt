@@ -1,0 +1,8 @@
+V4.1.2 FULL AUDIT FIX
+- Fixed the Render startup-order crash from the previous V4.1 package.
+- Verified /api/health route exists.
+- The 10 bundled starter MP3s are served locally and are also upserted into Supabase with local playable URLs.
+- Existing V4 Supabase song rows are repaired on startup so old broken Storage URLs do not override the bundled songs.
+- Public content falls back to local content if Supabase reads fail.
+- Admin uploads try Supabase Storage first and fall back locally with a clear warning.
+- No Supabase secret is included in the package.
