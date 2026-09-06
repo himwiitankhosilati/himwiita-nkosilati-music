@@ -69,7 +69,9 @@ function localSeedSongs(){
       genre:old.genre||'Gospel',
       file_url:old.file_url||localUrl('audio',filename),
       track:old.track||i+1,
-      plays:Number(old.plays||0)
+      plays:Number(old.plays||0),
+      likes:Number(old.likes||0),
+      downloads:Number(old.downloads||0)
     });
     delete existing.get(sid).file;
   });
@@ -132,7 +134,7 @@ app.get('/api/me',(req,res)=>res.json({loggedIn:!!session(req),user:session(req)
 app.post('/api/login',(req,res)=>{const {username,password}=req.body||{};if(username===ADMIN_USER&&password===ADMIN_PASS){res.setHeader('Set-Cookie',`sid=${makeSession(username)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`);return res.json({ok:true})}res.status(401).json({error:'Incorrect username or password'})});
 app.post('/api/logout',(req,res)=>{res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
 
-app.get('/api/health',(req,res)=>res.json({ok:true,supabaseConfigured:!!supabase,mode:supabase?'supabase+local-fallback':'local-only'}));
+app.get('/api/health',(req,res)=>res.json({ok:true,supabaseConfigured:!!supabase,mode:supabase?'supabase+local-fallback':'local-only',stats:'plays + likes + downloads'}));
 
 app.post('/api/upload',requireAdmin,upload.single('file'),async(req,res)=>{
   const user=session(req)?.u||'admin';
@@ -158,7 +160,7 @@ app.post('/api/upload',requireAdmin,upload.single('file'),async(req,res)=>{
         if(up.error)throw up.error;
         const publicUrl=storagePublic(bucket,objectPath);
         let row;
-        if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:publicUrl,track:Number(req.body.track||0),plays:0};
+        if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:publicUrl,track:Number(req.body.track||0),plays:0,likes:0,downloads:0};
         if(type==='video')row={id:id(),title,description:req.body.description||'',file_url:publicUrl};
         if(type==='cover')row={id:id(),title,description:req.body.description||'',cover_url:publicUrl};
         const table={song:'songs',video:'videos',cover:'albums'}[type];const q=await supabase.from(table).insert(row);if(q.error)throw q.error;
@@ -173,7 +175,7 @@ app.post('/api/upload',requireAdmin,upload.single('file'),async(req,res)=>{
     fs.writeFileSync(localFile,req.file.buffer);
     const localFileUrl=localUrl(bucket==='audio'?'audio':bucket==='videos'?'videos':'covers',filename);
     let row;
-    if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:localFileUrl,track:Number(req.body.track||0),plays:0};
+    if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:localFileUrl,track:Number(req.body.track||0),plays:0,likes:0,downloads:0};
     if(type==='video')row={id:id(),title,description:req.body.description||'',file_url:localFileUrl};
     if(type==='cover')row={id:id(),title,description:req.body.description||'',cover_url:localFileUrl};
     const c=localContent();const key={song:'songs',video:'videos',cover:'albums'}[type];c[key]=[row,...(c[key]||[])];writeLocal(c);
@@ -198,7 +200,51 @@ app.post('/api/delete/:type/:id',requireAdmin,async(req,res)=>{
   }catch(e){res.status(500).json({error:e.message})}
 });
 
-app.post('/api/play/:id',async(req,res)=>{try{if(!supabase)return res.json({ok:true});await supabase.rpc('increment_song_play',{song_id:req.params.id}).catch(async()=>{const {data}=await supabase.from('songs').select('plays').eq('id',req.params.id).single();if(data)await supabase.from('songs').update({plays:(data.plays||0)+1}).eq('id',req.params.id)});res.json({ok:true})}catch(e){res.json({ok:false})}});
+async function incrementStat(songId, stat){
+  const allowed=new Set(['plays','likes','downloads']);
+  if(!allowed.has(stat)) throw new Error('Invalid statistic');
+  if(supabase){
+    const fn='increment_song_'+stat;
+    const q=await supabase.rpc(fn,{song_id:songId});
+    if(!q.error)return true;
+    console.error('Supabase stat warning:',supabaseError(q.error));
+  }
+  const c=localContent();
+  const song=(c.songs||[]).find(x=>x.id===songId);
+  if(!song)return false;
+  song[stat]=Number(song[stat]||0)+1;
+  writeLocal(c);
+  return true;
+}
+
+app.post('/api/play/:id',async(req,res)=>{try{const ok=await incrementStat(req.params.id,'plays');res.json({ok})}catch(e){res.json({ok:false,error:e.message})}});
+app.post('/api/like/:id',async(req,res)=>{try{const ok=await incrementStat(req.params.id,'likes');res.json({ok})}catch(e){res.status(400).json({ok:false,error:e.message})}});
+
+app.get('/api/download/:id',async(req,res)=>{
+  try{
+    const c=await getContent();
+    const song=(c.songs||[]).find(x=>x.id===req.params.id);
+    if(!song)return res.status(404).send('Song not found');
+    const url=song.file_url||song.file;
+    if(!url)return res.status(404).send('Song file not found');
+    const filename=safeName((song.title||'song').replace(/\s+/g,'_'))+'.mp3';
+    if(url.startsWith('/uploads/')){
+      const fp=path.join(ROOT,url.replace(/^\//,''));
+      if(!fs.existsSync(fp))return res.status(404).send('Song file not found');
+      await incrementStat(song.id,'downloads');
+      res.setHeader('Content-Disposition',`attachment; filename="${filename}"`);
+      return res.download(fp,filename);
+    }
+    const r=await fetch(url);
+    if(!r.ok)throw new Error(`Audio file request failed (${r.status})`);
+    await incrementStat(song.id,'downloads');
+    res.setHeader('Content-Type',r.headers.get('content-type')||'audio/mpeg');
+    res.setHeader('Content-Disposition',`attachment; filename="${filename}"`);
+    const len=r.headers.get('content-length');if(len)res.setHeader('Content-Length',len);
+    const {Readable}=require('stream');
+    return Readable.fromWeb(r.body).pipe(res);
+  }catch(e){console.error('Download error:',e);res.status(502).send('Download could not be completed.');}
+});
 
 app.get('/uploads/:type/:name',(req,res)=>{const dirs={audio:AUDIO,videos:VIDEOS,covers:COVERS};const dir=dirs[req.params.type];if(!dir)return res.sendStatus(404);const fp=path.join(dir,safeName(req.params.name));if(!fs.existsSync(fp))return res.sendStatus(404);res.sendFile(fp)});
 

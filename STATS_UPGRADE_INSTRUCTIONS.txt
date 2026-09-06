@@ -1,0 +1,9 @@
+STATS UPGRADE
+
+This version adds:
+- Download button for every song
+- Like button (one like per browser/device per song)
+- Play, like and download counters on the public site
+- Total and per-song statistics in Admin
+
+IMPORTANT: Because your existing Supabase database was created before these counters existed, run sql/stats_upgrade.sql once in Supabase SQL Editor. Then deploy this version.
