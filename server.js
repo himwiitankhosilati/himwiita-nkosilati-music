@@ -3,6 +3,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const dns = require('dns').promises;
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -109,18 +110,14 @@ async function getContent(){
 }
 
 async function seedSongs(){
-  // V4.1 deliberately does NOT upload the bundled starter MP3s to Supabase at startup.
-  // They are already part of the deployed app, so using local URLs makes the first album
-  // work even if Storage is temporarily unreachable. Supabase can still store new uploads.
+  // The 10 bundled starter songs always remain playable from the deployed app.
+  // When Supabase is reachable, repair/upsert ONLY those known starter IDs so an older
+  // older database cannot keep stale Supabase Storage URLs. Other admin-added songs
+  // are left untouched.
   const local=localContent();
   if(!supabase)return;
   try{
-    const {data:existing,error}=await supabase.from('songs').select('id').limit(1);
-    if(error)throw error;
-    if(existing?.length)return;
-    for(const song of local.songs){
-      // Always repair the 10 bundled starter rows to point at the MP3s shipped with the app.
-      // This also fixes rows left behind by V4 that pointed to unreachable Supabase Storage URLs.
+    for(const song of local.songs.filter(x=>/^album-(?:[1-9]|10)$/.test(String(x.id)))){
       const row={...song}; delete row.created_at; delete row.updated_at; delete row.file;
       row.file_url=localUrl('audio',path.basename(song.file_url||''));
       const ins=await supabase.from('songs').upsert(row,{onConflict:'id'});
@@ -131,10 +128,17 @@ async function seedSongs(){
 
 app.get('/api/content', async(req,res)=>{try{res.json(await getContent())}catch(e){res.status(500).json({error:e.message})}});
 app.get('/api/me',(req,res)=>res.json({loggedIn:!!session(req),user:session(req)?.u||null}));
-app.post('/api/login',(req,res)=>{const {username,password}=req.body||{};if(username===ADMIN_USER&&password===ADMIN_PASS){res.setHeader('Set-Cookie',`sid=${makeSession(username)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`);return res.json({ok:true})}res.status(401).json({error:'Incorrect username or password'})});
-app.post('/api/logout',(req,res)=>{res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
+app.post('/api/login',(req,res)=>{const {username,password}=req.body||{};if(username===ADMIN_USER&&password===ADMIN_PASS){res.setHeader('Set-Cookie',`sid=${makeSession(username)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800; Secure`);return res.json({ok:true})}res.status(401).json({error:'Incorrect username or password'})});
+app.post('/api/logout',(req,res)=>{res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0; Secure');res.json({ok:true})});
 
-app.get('/api/health',(req,res)=>res.json({ok:true,supabaseConfigured:!!supabase,mode:supabase?'supabase+local-fallback':'local-only',stats:'plays + likes + downloads'}));
+app.get('/api/health',async(req,res)=>{
+  let supabaseDns='not-configured',supabaseHost=null;
+  if(SUPABASE_URL){
+    try{supabaseHost=new URL(SUPABASE_URL).hostname;await dns.lookup(supabaseHost);supabaseDns='ok';}
+    catch(e){supabaseDns=e.code||e.message||'dns-error';}
+  }
+  res.json({ok:true,supabaseConfigured:!!supabase,mode:supabase?'supabase+local-fallback':'local-only',stats:'plays + likes + downloads',supabaseHost,supabaseDns});
+});
 
 app.post('/api/upload',requireAdmin,upload.single('file'),async(req,res)=>{
   const user=session(req)?.u||'admin';

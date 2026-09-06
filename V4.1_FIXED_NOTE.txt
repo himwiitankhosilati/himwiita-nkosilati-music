@@ -1,8 +1,11 @@
-V4.1.2 FULL AUDIT FIX
-- Fixed the Render startup-order crash from the previous V4.1 package.
-- Verified /api/health route exists.
-- The 10 bundled starter MP3s are served locally and are also upserted into Supabase with local playable URLs.
-- Existing V4 Supabase song rows are repaired on startup so old broken Storage URLs do not override the bundled songs.
-- Public content falls back to local content if Supabase reads fail.
-- Admin uploads try Supabase Storage first and fall back locally with a clear warning.
-- No Supabase secret is included in the package.
+V4.2.1 AUDIT NOTE
+
+Fixed in this package:
+- Admin login JavaScript syntax error that caused the LOGIN button to appear to do nothing.
+- Admin login now verifies the session before hiding the login box.
+- Admin startup errors are caught instead of leaving a broken blank panel.
+- Starter-song seeding now repairs/upserts the 10 bundled starter songs even when old Supabase rows already exist.
+- Production session cookies use Secure on HTTPS/Render.
+- /api/health now reports the configured Supabase hostname and DNS status without exposing secrets.
+- Public and admin JavaScript syntax-checked.
+- Node server syntax-checked.
