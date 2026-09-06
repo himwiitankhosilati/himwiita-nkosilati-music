@@ -1,48 +1,26 @@
-# Himwiita Nkosilati Music — Version 4
+# Himwiita Nkosilati Music — V4.1
 
-A production-oriented online music website for **Himwiita Nkosilati Music**.
+V4.1 fixes the first-album problem by **not requiring the 10 bundled MP3s to be uploaded to Supabase Storage during startup**. The starter MP3s are already inside the application and are served from `/uploads/audio/...`.
 
-## What is new in V4
-- Supabase PostgreSQL database for songs, albums, videos, lyrics and audit history.
-- Supabase Storage for permanent online audio/video/cover storage.
-- Secure server-side admin session using an environment secret.
-- Admin upload/delete tools.
-- Play counters for songs.
-- Public music player with next/previous/auto-next.
-- Searchable track list.
-- Responsive dark/gold design.
-- Render deployment file included.
-- Existing 10 Tushoma Ndiwe MP3 files are included as seed media.
+## What changed
+- 10 starter songs are seeded into the Supabase `songs` table with local playable URLs.
+- If Supabase is temporarily unreachable, the public site falls back to the local content instead of showing an empty library.
+- Admin uploads try Supabase Storage first.
+- If Supabase Storage cannot be reached, an upload is saved locally so it can play immediately, with a warning explaining that Render Free storage is not permanent.
+- Added `/api/health` for quick diagnostics.
+- Better Supabase error logging.
 
-## Before putting it online
-1. Create a Supabase project.
-2. Open SQL Editor and run `sql/supabase_setup.sql`.
-3. Copy the Supabase project URL and **service role key** into Render environment variables. Never put the service role key in browser code or GitHub.
-4. Set `ADMIN_PASS` to a strong private password.
-5. Deploy this project to Render.
+## Important for permanent new uploads
+For permanent admin uploads on Render, Supabase Storage must be reachable from the Render service. If it is not, the V4.1 local fallback is only temporary on Render Free.
 
-## Local test
-Install Node.js 18+.
+Supabase currently recommends resumable/TUS uploads for files larger than 6 MB. The existing standard server upload remains for compatibility; this can be upgraded to TUS later if needed.
 
-```bash
-npm install
-```
-
-Create environment variables:
-
+## Environment variables
+Set these on Render:
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (or your current server-side Supabase key)
 - `SESSION_SECRET`
-- `ADMIN_USER` (default `admin`)
+- `ADMIN_USER`
 - `ADMIN_PASS`
 
-Then:
-
-```bash
-npm start
-```
-
-Open `http://localhost:3000` and `/admin.html`.
-
-## Important
-The included MP3s are copied from the earlier website build. On first start with Supabase configured, V4 automatically uploads any seed songs that are not already in the database. This means the public site can use permanent Supabase URLs instead of Render's temporary filesystem.
+Never put a Supabase secret/service-role key in browser code or GitHub.

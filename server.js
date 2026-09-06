@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const CONTENT_FILE = path.join(ROOT, 'data', 'content.json');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,38 +47,70 @@ function localUrl(type,name){return '/uploads/'+type+'/'+name;}
 function storagePublic(bucket,file){return supabase.storage.from(bucket).getPublicUrl(file).data.publicUrl;}
 async function logAction(user,action,type,name){if(!supabase)return;await supabase.from('audit_log').insert({username:user,action,item_type:type,item_name:name});}
 
+function readLocal(){
+  try{return JSON.parse(fs.readFileSync(CONTENT_FILE,'utf8'));}
+  catch{return {albums:[],songs:[],videos:[],lyrics:[],settings:{artist:'Himwiita Nkosilati Music',album:'Tushoma Ndiwe',phone:'0978038489',manager:'Eunice Mwanga'}};}
+}
+function writeLocal(c){fs.mkdirSync(path.dirname(CONTENT_FILE),{recursive:true});fs.writeFileSync(CONTENT_FILE,JSON.stringify(c,null,2));}
+function localSeedSongs(){
+  const c=readLocal();
+  const files=fs.readdirSync(AUDIO).filter(x=>x.toLowerCase().endsWith('.mp3')).sort();
+  const existing=new Map((c.songs||[]).map(x=>[x.id,x]));
+  files.forEach((filename,i)=>{
+    const sid='album-'+(i+1);
+    if(!existing.has(sid)){
+      const title=filename.replace(/_himwiita_nkhosilati.*$/i,'').replace(/^.*\//,'').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()).replace(/\s+/g,' ').trim();
+      existing.set(sid,{id:sid,title,artist:'Himwiita Nkosilati',album:'Tushoma Ndiwe',genre:'Gospel',file_url:localUrl('audio',filename),track:i+1,plays:0});
+    }
+  });
+  c.songs=[...existing.values()];
+  if(!c.albums?.length)c.albums=[{id:'album-1',title:'Tushoma Ndiwe',description:'Gospel album by Himwiita Nkosilati',cover_url:''}];
+  writeLocal(c); return c;
+}
+function localContent(){return localSeedSongs();}
+function supabaseError(e){return e ? {message:e.message||String(e),details:e.details||null,hint:e.hint||null,code:e.code||null,statusCode:e.statusCode||null,name:e.name||null} : null;}
+
 async function getContent(){
-  if(!supabase) return {albums:[],songs:[],videos:[],lyrics:[],settings:{artist:'Himwiita Nkosilati Music',album:'Tushoma Ndiwe',phone:'0978038489',manager:'Eunice Mwanga'}};
-  const [a,s,v,l,set] = await Promise.all([
-    supabase.from('albums').select('*').order('created_at',{ascending:true}),
-    supabase.from('songs').select('*').order('track',{ascending:true}).order('created_at',{ascending:true}),
-    supabase.from('videos').select('*').order('created_at',{ascending:false}),
-    supabase.from('lyrics').select('*').order('created_at',{ascending:false}),
-    supabase.from('site_settings').select('*')
-  ]);
-  for(const x of [a,s,v,l,set]) if(x.error) throw x.error;
-  const settings={};set.data.forEach(x=>settings[x.key]=x.value);
-  return {albums:a.data||[],songs:s.data||[],videos:v.data||[],lyrics:l.data||[],settings};
+  const local=localContent();
+  if(!supabase) return local;
+  try{
+    const [a,s,v,l,set] = await Promise.all([
+      supabase.from('albums').select('*').order('created_at',{ascending:true}),
+      supabase.from('songs').select('*').order('track',{ascending:true}).order('created_at',{ascending:true}),
+      supabase.from('videos').select('*').order('created_at',{ascending:false}),
+      supabase.from('lyrics').select('*').order('created_at',{ascending:false}),
+      supabase.from('site_settings').select('*')
+    ]);
+    for(const x of [a,s,v,l,set]) if(x.error) throw x.error;
+    const settings={};(set.data||[]).forEach(x=>settings[x.key]=x.value);
+    return {
+      albums:(a.data&&a.data.length?a.data:local.albums)||[],
+      songs:(s.data&&s.data.length?s.data:local.songs)||[],
+      videos:v.data||[], lyrics:l.data||[],
+      settings:Object.keys(settings).length?settings:local.settings
+    };
+  }catch(e){
+    console.error('Supabase read warning:',supabaseError(e));
+    return local;
+  }
 }
 
 async function seedSongs(){
+  // V4.1 deliberately does NOT upload the bundled starter MP3s to Supabase at startup.
+  // They are already part of the deployed app, so using local URLs makes the first album
+  // work even if Storage is temporarily unreachable. Supabase can still store new uploads.
+  const local=localContent();
   if(!supabase)return;
-  const {data:existing,error}=await supabase.from('songs').select('id').limit(1); if(error)throw error;
-  if(existing?.length)return;
-  const files=fs.readdirSync(AUDIO).filter(x=>x.toLowerCase().endsWith('.mp3')).sort();
-  for(let i=0;i<files.length;i++){
-    const filename=files[i], idv='album-'+(i+1), title=filename.replace(/_himwiita_nkhosilati.*$/i,'').replace(/^.*\//,'').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()).replace(/\s+/g,' ').trim();
-    const storagePath='seed/'+filename;
-    const exists=await supabase.storage.from('audio').list('seed',{search:filename,limit:1});
-    if(!exists.error && exists.data?.some(x=>x.name===filename)){
-      await supabase.from('songs').upsert({id:idv,title,artist:'Himwiita Nkosilati',album:'Tushoma Ndiwe',genre:'Gospel',file_url:storagePublic('audio',storagePath),track:i+1},{onConflict:'id'});continue;
+  try{
+    const {data:existing,error}=await supabase.from('songs').select('id').limit(1);
+    if(error)throw error;
+    if(existing?.length)return;
+    for(const song of local.songs){
+      const row={...song}; delete row.created_at; delete row.updated_at;
+      const ins=await supabase.from('songs').upsert(row,{onConflict:'id'});
+      if(ins.error)throw ins.error;
     }
-    const data=fs.readFileSync(path.join(AUDIO,filename));
-    const up=await supabase.storage.from('audio').upload(storagePath,data,{contentType:'audio/mpeg',upsert:true});
-    if(up.error)throw up.error;
-    const row={id:idv,title,artist:'Himwiita Nkosilati',album:'Tushoma Ndiwe',genre:'Gospel',file_url:storagePublic('audio',storagePath),track:i+1};
-    const ins=await supabase.from('songs').upsert(row,{onConflict:'id'});if(ins.error)throw ins.error;
-  }
+  }catch(e){console.error('Seed warning:',supabaseError(e));}
 }
 
 app.get('/api/content', async(req,res)=>{try{res.json(await getContent())}catch(e){res.status(500).json({error:e.message})}});
@@ -85,34 +118,69 @@ app.get('/api/me',(req,res)=>res.json({loggedIn:!!session(req),user:session(req)
 app.post('/api/login',(req,res)=>{const {username,password}=req.body||{};if(username===ADMIN_USER&&password===ADMIN_PASS){res.setHeader('Set-Cookie',`sid=${makeSession(username)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`);return res.json({ok:true})}res.status(401).json({error:'Incorrect username or password'})});
 app.post('/api/logout',(req,res)=>{res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');res.json({ok:true})});
 
+app.get('/api/health',(req,res)=>res.json({ok:true,supabaseConfigured:!!supabase,mode:supabase?'supabase+local-fallback':'local-only'}));
+
 app.post('/api/upload',requireAdmin,upload.single('file'),async(req,res)=>{
+  const user=session(req)?.u||'admin';
   try{
-    if(!supabase)return res.status(503).json({error:'Supabase is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'});
-    const type=req.body.type,title=(req.body.title||'').trim(); if(!title)return res.status(400).json({error:'Title is required'});
-    const bucket={song:'audio',video:'videos',cover:'covers'}[type];
+    const type=req.body.type,title=(req.body.title||'').trim();
+    if(!title)return res.status(400).json({error:'Title is required'});
     if(type==='lyrics'){
-      const row={id:id(),song:title,text:req.body.text||''};const q=await supabase.from('lyrics').insert(row);if(q.error)throw q.error;await logAction(session(req).u,'Created','lyrics',title);return res.json({ok:true,data:await getContent()});
+      const row={id:id(),song:title,text:req.body.text||''};
+      if(supabase){try{const q=await supabase.from('lyrics').insert(row);if(q.error)throw q.error;await logAction(user,'Created','lyrics',title);return res.json({ok:true,data:await getContent(),persistent:true});}catch(e){console.error('Lyrics Supabase warning:',supabaseError(e));}}
+      const c=localContent();c.lyrics=[row,...(c.lyrics||[])];writeLocal(c);return res.json({ok:true,data:c,persistent:false,warning:'Saved on this server, but Supabase could not be reached. It may disappear after a redeploy.'});
     }
+    const bucket={song:'audio',video:'videos',cover:'covers'}[type];
     if(!bucket||!req.file)return res.status(400).json({error:'A file is required'});
     const ext=path.extname(safeName(req.file.originalname)).toLowerCase();
     const allowed={audio:['.mp3','.wav','.m4a','.flac','.aac'],videos:['.mp4','.webm','.mov'],covers:['.jpg','.jpeg','.png','.webp']}[bucket];
     if(!allowed.includes(ext))return res.status(400).json({error:'Unsupported file type'});
-    const objectPath=`uploads/${Date.now()}_${crypto.randomBytes(5).toString('hex')}${ext}`;
-    const up=await supabase.storage.from(bucket).upload(objectPath,req.file.buffer,{contentType:req.file.mimetype||'application/octet-stream',upsert:false});if(up.error)throw up.error;
-    const publicUrl=storagePublic(bucket,objectPath);
+    const filename=`${Date.now()}_${crypto.randomBytes(5).toString('hex')}${ext}`;
+    const objectPath=`uploads/${filename}`;
+    if(supabase){
+      try{
+        // Standard upload is kept for compatibility. Supabase recommends resumable/TUS for files >6MB.
+        const up=await supabase.storage.from(bucket).upload(objectPath,req.file.buffer,{contentType:req.file.mimetype||'application/octet-stream',upsert:false});
+        if(up.error)throw up.error;
+        const publicUrl=storagePublic(bucket,objectPath);
+        let row;
+        if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:publicUrl,track:Number(req.body.track||0),plays:0};
+        if(type==='video')row={id:id(),title,description:req.body.description||'',file_url:publicUrl};
+        if(type==='cover')row={id:id(),title,description:req.body.description||'',cover_url:publicUrl};
+        const table={song:'songs',video:'videos',cover:'albums'}[type];const q=await supabase.from(table).insert(row);if(q.error)throw q.error;
+        await logAction(user,'Created',type,title);return res.json({ok:true,data:await getContent(),persistent:true});
+      }catch(e){
+        console.error('Supabase upload warning:',supabaseError(e));
+      }
+    }
+    // Safe fallback: keep the upload playable immediately on Render/local server.
+    // This fallback is not permanent on Render Free because its filesystem is ephemeral.
+    const localFile=path.join(bucket==='audio'?AUDIO:bucket==='videos'?VIDEOS:COVERS,filename);
+    fs.writeFileSync(localFile,req.file.buffer);
+    const localFileUrl=localUrl(bucket==='audio'?'audio':bucket==='videos'?'videos':'covers',filename);
     let row;
-    if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:publicUrl,track:Number(req.body.track||0),plays:0};
-    if(type==='video')row={id:id(),title,description:req.body.description||'',file_url:publicUrl};
-    if(type==='cover')row={id:id(),title,description:req.body.description||'',cover_url:publicUrl};
-    const table={song:'songs',video:'videos',cover:'albums'}[type];const q=await supabase.from(table).insert(row);if(q.error)throw q.error;
-    await logAction(session(req).u,'Created',type,title);res.json({ok:true,data:await getContent()});
-  }catch(e){console.error(e);res.status(500).json({error:e.message||'Upload failed'})}
+    if(type==='song')row={id:id(),title,artist:'Himwiita Nkosilati',album:req.body.album||'Tushoma Ndiwe',genre:req.body.genre||'Gospel',file_url:localFileUrl,track:Number(req.body.track||0),plays:0};
+    if(type==='video')row={id:id(),title,description:req.body.description||'',file_url:localFileUrl};
+    if(type==='cover')row={id:id(),title,description:req.body.description||'',cover_url:localFileUrl};
+    const c=localContent();const key={song:'songs',video:'videos',cover:'albums'}[type];c[key]=[row,...(c[key]||[])];writeLocal(c);
+    return res.json({ok:true,data:c,persistent:false,warning:'Saved locally because Supabase Storage could not be reached. On Render Free, local uploads can disappear after a redeploy. The 10 starter songs are bundled and will return automatically.'});
+  }catch(e){console.error('Upload failed:',e);res.status(500).json({error:e.message||'Upload failed'});}
 });
 
 app.post('/api/delete/:type/:id',requireAdmin,async(req,res)=>{
-  try{if(!supabase)return res.status(503).json({error:'Supabase is not configured'});const map={song:'songs',video:'videos',album:'albums',lyric:'lyrics'},table=map[req.params.type];if(!table)return res.status(400).json({error:'Bad type'});
-    const {data,error}=await supabase.from(table).select('*').eq('id',req.params.id).maybeSingle();if(error)throw error;if(!data)return res.status(404).json({error:'Item not found'});
-    const q=await supabase.from(table).delete().eq('id',req.params.id);if(q.error)throw q.error;await logAction(session(req).u,'Deleted',req.params.type,data.title||data.song||'item');res.json({ok:true,data:await getContent()});
+  try{
+    const map={song:'songs',video:'videos',album:'albums',lyric:'lyrics'},table=map[req.params.type];
+    if(!table)return res.status(400).json({error:'Bad type'});
+    if(supabase){
+      try{
+        const {data,error}=await supabase.from(table).select('*').eq('id',req.params.id).maybeSingle();if(error)throw error;
+        if(data){const q=await supabase.from(table).delete().eq('id',req.params.id);if(q.error)throw q.error;await logAction(session(req).u,'Deleted',req.params.type,data.title||data.song||'item');return res.json({ok:true,data:await getContent()});}
+      }catch(e){console.error('Supabase delete warning:',supabaseError(e));}
+    }
+    const c=localContent();const before=c[table]||[];const item=before.find(x=>x.id===req.params.id);if(!item)return res.status(404).json({error:'Item not found'});
+    c[table]=before.filter(x=>x.id!==req.params.id);writeLocal(c);
+    for(const u of [item.file_url,item.cover_url]){if(u&&u.startsWith('/uploads/')){const fp=path.join(ROOT,u.replace(/^\//,''));if(fs.existsSync(fp))try{fs.unlinkSync(fp)}catch{}}}
+    res.json({ok:true,data:c});
   }catch(e){res.status(500).json({error:e.message})}
 });
 
